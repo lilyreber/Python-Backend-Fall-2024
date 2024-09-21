@@ -2,7 +2,6 @@ import json
 import math
 from http import HTTPStatus
 
-
 async def app(scope, receive, send) -> None:
     if scope["method"] == "GET":
         path = scope["path"]
@@ -12,8 +11,8 @@ async def app(scope, receive, send) -> None:
         if path.startswith("/fibonacci"):
             await send_fibonacci(scope, send)
             return
-        if path == "/mean":
-            await send_mean(scope, send)
+        if path.startswith("/mean"):
+            await send_mean(scope, receive, send)
             return
     await send_error(send, HTTPStatus.NOT_FOUND)
 
@@ -40,7 +39,7 @@ async def send_factorial(scope, send):
 
 
 async def send_fibonacci(scope, send):
-    n = 0
+    n = None
     path_split = scope["path"].split("/")
     if path_split[1] == "fibonacci" and len(path_split) == 3:
         try:
@@ -50,11 +49,39 @@ async def send_fibonacci(scope, send):
     else:
         await send_error(send, HTTPStatus.UNPROCESSABLE_ENTITY)
 
-    f0 = 0
-    f1 = 1
-    for i in range(2, n):
-        f0, f1 = f1, f0 + f1
-    return f1
+    if n < 0:
+        await send_error(send, HTTPStatus.BAD_REQUEST)
+        return
+
+    fib = 0
+    if n < 2:
+        fib = n
+    else:
+        f0 = 0
+        f1 = 1
+        for i in range(2, n+1):
+            f0, f1 = f1, f0 + f1
+        fib = f1
+    print(fib)
+    await send_response(send, HTTPStatus.OK, json.dumps({"result":fib}))
+
+async def send_mean(scope, receive, send):
+    request = await receive()
+    body = request.get("body")
+    if len(body) == 0:
+        await send_error(send, HTTPStatus.UNPROCESSABLE_ENTITY)
+        return
+
+    nums = json.loads(body)
+    if len(nums) == 0:
+        await send_error(send, HTTPStatus.BAD_REQUEST)
+        return
+
+    if any(not isinstance(n, (float, int)) for n in nums):
+        await send_error(send, HTTPStatus.UNPROCESSABLE_ENTITY)
+        return
+
+    await send_response(send, HTTPStatus.OK, json.dumps({"result": sum(nums) / len(nums)}))
 
 
 async def send_response(send, code, json_value):
