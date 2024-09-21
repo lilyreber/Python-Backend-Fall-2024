@@ -1,5 +1,7 @@
+import json
 import math
 from http import HTTPStatus
+
 
 async def app(scope, receive, send) -> None:
     if scope["method"] == "GET":
@@ -20,23 +22,34 @@ def get_parameter(scope, param):
     if scope["query_string"]:
         qs = scope["query_string"].decode("utf-8")
         query = dict(entry.split("=") for entry in qs.split("&"))
-        return query["n"]
+        return query.get("n")
 
 async def send_factorial(scope, send):
-    print(scope["query_string"])
     n = get_parameter(scope, "n")
-    if not (n and n.isdigit()):
+    try:
+        n = int(n)
+    except (ValueError, TypeError):
         await send_error(send, HTTPStatus.UNPROCESSABLE_ENTITY)
         return
-    n = int(n)
+
     if n < 0:
-        await send_error(send, HTTPStatus.UNPROCESSABLE_ENTITY)
+        await send_error(send, HTTPStatus.BAD_REQUEST)
         return
 
-    await send_response(send, HTTPStatus.OK, str(math.factorial(n)))
+    await send_response(send, HTTPStatus.OK, json.dumps({"result":math.factorial(n)}))
 
 
-async def fibonacci(n):
+async def send_fibonacci(scope, send):
+    n = 0
+    path_split = scope["path"].split("/")
+    if path_split[1] == "fibonacci" and len(path_split) == 3:
+        try:
+            n = int(path_split[2])
+        except ValueError:
+            await send_error(send, HTTPStatus.UNPROCESSABLE_ENTITY)
+    else:
+        await send_error(send, HTTPStatus.UNPROCESSABLE_ENTITY)
+
     f0 = 0
     f1 = 1
     for i in range(2, n):
@@ -44,17 +57,17 @@ async def fibonacci(n):
     return f1
 
 
-async def send_response(send, code, value):
+async def send_response(send, code, json_value):
     await send({
         "type": "http.response.start",
         "status": code,
         "headers": [
-            [b"content-type", b"text/plain"],
+            [b"content-type", b"application/json"],
         ]
     })
     await send({
         "type": "http.response.body",
-        "body": value,
+        "body": json_value.encode("utf-8"),
     })
 
 async def send_error(send, code):
