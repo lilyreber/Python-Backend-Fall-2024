@@ -21,7 +21,7 @@ def get_parameter(scope, param):
     if scope["query_string"]:
         qs = scope["query_string"].decode("utf-8")
         query = dict(entry.split("=") for entry in qs.split("&"))
-        return query.get("n")
+        return query.get(param)
 
 async def send_factorial(scope, send):
     n = get_parameter(scope, "n")
@@ -53,7 +53,6 @@ async def send_fibonacci(scope, send):
         await send_error(send, HTTPStatus.BAD_REQUEST)
         return
 
-    fib = 0
     if n < 2:
         fib = n
     else:
@@ -62,7 +61,6 @@ async def send_fibonacci(scope, send):
         for i in range(2, n+1):
             f0, f1 = f1, f0 + f1
         fib = f1
-    print(fib)
     await send_response(send, HTTPStatus.OK, json.dumps({"result":fib}))
 
 async def send_mean(scope, receive, send):
@@ -107,7 +105,7 @@ async def send_error(send, code):
     })
     await send({
         "type": "http.response.body",
-        #"body": message,
+        "body": code.description.encode('utf-8'),
     })
 
 
